@@ -1,7 +1,6 @@
 if v:version >= 800
 
 let g:WorkingSetSocketPath   = get(g:, 'WorkingSetSocketPath', '.working_set_socket')
-let g:WorkingSetSearchPrefix = get(g:, 'WorkingSetSearchPrefix', '')
 
 " Connection Management
 " =====================
@@ -94,7 +93,7 @@ endfunc
 
 func! s:SearchWithPrefix(term)
   echomsg "WS Search: " . a:term
-  call s:Search(g:WorkingSetSearchPrefix . " " . a:term)
+  call s:Search(a:term)
 endfunc
 
 func! s:SearchCurrentWord()

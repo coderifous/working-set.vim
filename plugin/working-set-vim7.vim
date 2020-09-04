@@ -80,10 +80,6 @@ ruby <<EOF
   end
 EOF
 
-if !exists("g:WorkingSetSearchPrefix")
-  let g:WorkingSetSearchPrefix = ""
-endif
-
 if !exists("g:WorkingSetSocketPath")
   let g:WorkingSetSocketPath = ".working_set_socket"
 endif
@@ -96,7 +92,7 @@ endfunction
 
 function! s:WS_search(term)
   call s:WS_EnsureConnection()
-  let searchString = g:WorkingSetSearchPrefix . " " . a:term
+  let searchString = a:term
   ruby << EOF
   VIM::message("Search: #{VIM::evaluate('searchString').inspect}")
   $WS_connection.search(VIM::evaluate('searchString'))
