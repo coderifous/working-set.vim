@@ -1,5 +1,9 @@
 if v:version >= 800
 
+if executable('socat') != 1
+  echomsg "Warning: working-set requires the `socat` command to be installed and in $PATH"
+endif
+
 let g:WorkingSetSocketPath   = get(g:, 'WorkingSetSocketPath', '.working_set_socket')
 
 " Connection Management
