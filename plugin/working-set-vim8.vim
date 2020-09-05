@@ -106,7 +106,7 @@ func! s:Grab(pasteCmd)
 endfunc
 
 func! s:HandleGrabbedItem(pasteCmd, channel, msg)
-  let line = substitute(a:msg, '^\s*', '', '')
+  let line = substitute(json_decode(a:msg).data, '^\s*', '', '')
   call setreg('"', line, 'l')
   exe 'normal ""' . a:pasteCmd
 endfunc
