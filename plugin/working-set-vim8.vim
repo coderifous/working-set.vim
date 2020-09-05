@@ -114,6 +114,7 @@ command! WSSelectNextItem call s:SelectNextItem()
 " ================
 
 command! -nargs=1 WS call s:SearchWithOptions(<f-args>, {})
+command! -nargs=1 WSw call s:SearchWithOptions(<f-args>, #{ whole_word: v:true })
 command! WSSync call s:Sync()
 command! -nargs=1 WSGrab call s:Grab(<f-args>)
 command! WSSelectNextItem call s:SelectNextItem()
