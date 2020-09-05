@@ -18,7 +18,7 @@ func! s:Connect(socketfile)
     call job_stop(g:WSjob)
   endif
 
-  let g:WSjob = job_start("socat - UNIX-CONNECT:" . a:socketfile, { "err_cb": function("s:ErrorHandler"), "out_cb": function("s:BasicInputHandler") })
+  let g:WSjob = job_start("socat - UNIX-CONNECT:" . a:socketfile, { "err_cb": function("s:ErrorHandler"), "out_cb": function("s:InputHandler") })
   let g:WSchannel = job_getchannel(g:WSjob)
 
   if ch_status(g:WSchannel) != "open"
@@ -26,10 +26,11 @@ func! s:Connect(socketfile)
   endif
 endfunc
 
-" Handles basic msg from Working Set, which is normally a file|row|col msg.
-" When other inputs are expected, a specific handler should be specified.
-func! s:BasicInputHandler(channel, msg)
-  call s:SyncLocation(a:msg)
+func! s:InputHandler(channel, response_body)
+  let payload = json_decode(a:response_body)
+  if payload.message == "selected_item"
+    call s:SyncLocation(payload)
+  endif
 endfunc
 
 func! s:ErrorHandler(channel, msg)
@@ -39,32 +40,31 @@ endfunc
 " Low Level API Functions
 " =======================
 
-func! s:SyncLocation(msg)
-  let parts = split(a:msg, "|")
-  if a:msg == "" || len(parts) > 3
-    echomsg "WS Sync confused: " . a:msg
-  else
-    if len(parts) > 0
-      exe 'e' parts[0]
-    endif
-    if len(parts) > 1
-      exe 'norm' parts[1] . 'gg'
-    endif
-    if len(parts) > 2
-      exe 'norm' parts[2] . '|'
-    endif
+func! s:SyncLocation(location)
+  if has_key(a:location, "file_path")
+    exe 'e' a:location.file_path
+  endif
+  if has_key(a:location, "row")
+    exe 'norm!' a:location.row . 'gg'
+  endif
+  if has_key(a:location, "column")
+    exe 'norm!' a:location.column . '|'
   endif
 endfunc
 
 func! s:SendMsg(msg, ...)
-  call s:EnsureConnection()
-  if exists("a:2")
-    call ch_sendraw(g:WSchannel, a:msg . "\n", { 'callback' : function(a:1, [a:2]) })
-  elseif exists("a:1")
-    call ch_sendraw(g:WSchannel, a:msg . "\n", { 'callback' : function(a:1) })
-  else
-    call ch_sendraw(g:WSchannel, a:msg . "\n")
+  let payload = #{ message: a:msg }
+  let options = {}
+  if exists("a:1")
+    call extend(payload, a:1)
   endif
+  if exists("a:2")
+    if has_key(a:2, "callback")
+      let options.callback = function(a:2.callback, a:2.args)
+    endif
+  endif
+  call s:EnsureConnection()
+  call ch_sendraw(g:WSchannel, json_encode(payload) . "\n", options)
 endfunc
 
 " Medium Level API Functions
@@ -72,10 +72,6 @@ endfunc
 
 func! s:Sync()
   call s:SendMsg("tell_selected_item")
-endfunc
-
-func! s:Search(term)
-  call s:SendMsg("search_changed|" . a:term)
 endfunc
 
 func! s:SelectNextItem()
@@ -91,18 +87,18 @@ endfunc
 " High Level API Functions
 " ========================
 
-func! s:SearchWithPrefix(term)
-  echomsg "WS Search: " . a:term
-  call s:Search(a:term)
+func! s:SearchWithOptions(term, options)
+  echomsg "WS Search: " . json_encode(a:options) . " " . a:term
+  call s:SendMsg("search_changed", #{ args: a:term, options: a:options })
 endfunc
 
 func! s:SearchCurrentWord()
   let wordUnderCursor = expand("<cword>")
-  call s:SearchWithPrefix("-w " . wordUnderCursor)
+  call s:SearchWithOptions(wordUnderCursor, #{ whole_word: v:true })
 endfunc
 
 func! s:Grab(pasteCmd)
-  call s:SendMsg("tell_selected_item_content", "s:HandleGrabbedItem", a:pasteCmd)
+  call s:SendMsg("tell_selected_item_content", {}, #{ callback: "s:HandleGrabbedItem", args: [a:pasteCmd] })
 endfunc
 
 func! s:HandleGrabbedItem(pasteCmd, channel, msg)
@@ -117,7 +113,7 @@ command! WSSelectNextItem call s:SelectNextItem()
 " Command mappings
 " ================
 
-command! -nargs=1 WS call s:SearchWithPrefix(<f-args>)
+command! -nargs=1 WS call s:SearchWithOptions(<f-args>, {})
 command! WSSync call s:Sync()
 command! -nargs=1 WSGrab call s:Grab(<f-args>)
 command! WSSelectNextItem call s:SelectNextItem()
@@ -133,3 +129,4 @@ if !exists('g:WorkingSetSkipMappings')
 endif
 
 endif
+
