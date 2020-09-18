@@ -57,7 +57,7 @@ func! s:SyncLocation(location)
 endfunc
 
 func! s:SendMsg(msg, ...)
-  let payload = #{ message: a:msg }
+  let payload = { 'message': a:msg }
   let options = {}
   if exists("a:1")
     call extend(payload, a:1)
@@ -93,16 +93,16 @@ endfunc
 
 func! s:SearchWithOptions(term, options)
   echomsg "WS Search: " . json_encode(a:options) . " " . a:term
-  call s:SendMsg("search_changed", #{ args: a:term, options: a:options })
+  call s:SendMsg("search_changed", { 'args': a:term, 'options': a:options })
 endfunc
 
 func! s:SearchCurrentWord()
   let wordUnderCursor = expand("<cword>")
-  call s:SearchWithOptions(wordUnderCursor, #{ whole_word: v:true })
+  call s:SearchWithOptions(wordUnderCursor, { 'whole_word': v:true })
 endfunc
 
 func! s:Grab(pasteCmd)
-  call s:SendMsg("tell_selected_item_content", {}, #{ callback: "s:HandleGrabbedItem", args: [a:pasteCmd] })
+  call s:SendMsg("tell_selected_item_content", {}, { 'callback': "s:HandleGrabbedItem", 'args': [a:pasteCmd] })
 endfunc
 
 func! s:HandleGrabbedItem(pasteCmd, channel, msg)
@@ -118,7 +118,7 @@ command! WSSelectNextItem call s:SelectNextItem()
 " ================
 
 command! -nargs=1 WS call s:SearchWithOptions(<f-args>, {})
-command! -nargs=1 WSw call s:SearchWithOptions(<f-args>, #{ whole_word: v:true })
+command! -nargs=1 WSw call s:SearchWithOptions(<f-args>, { 'whole_word': v:true })
 command! WSSync call s:Sync()
 command! -nargs=1 WSGrab call s:Grab(<f-args>)
 command! WSSelectNextItem call s:SelectNextItem()

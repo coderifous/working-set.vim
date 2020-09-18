@@ -161,6 +161,11 @@ Git repository: https://github.com/coderifous/working-set.vim
 ===============================================================================
 CHANGELOG                                               *working-set-changelog*
 
-2020/09/02: Actual first public release.
+2020/09/18: v1.0.1
+  - Dropped literal-dict syntax to support earlier versions of Vim 8.
+
+2020/09/02: v1.0.0
+  - Actual first public release.
+
 2016/12/25: First public release.
 

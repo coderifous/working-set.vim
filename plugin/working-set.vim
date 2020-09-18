@@ -1,2 +1,2 @@
-let g:WorkingSetVersion = "1.0.0"
+let g:WorkingSetVersion = "1.0.1"
 
