@@ -1,4 +1,4 @@
-if v:version >= 800
+if v:version >= 800 || has('nvim')
 
 if executable('socat') != 1
   echomsg "Warning: working-set requires the `socat` command to be installed and in $PATH"
@@ -10,35 +10,73 @@ let g:WorkingSetSocketPath   = get(g:, 'WorkingSetSocketPath', '.working_set_soc
 " =====================
 
 func! s:EnsureConnection()
-  if exists("g:WSchannel") && ch_status(g:WSchannel) == "open"
-    " Connected, do nothing.
+  if has("nvim")
+    if exists("g:WSchannel") && g:WSchannel != 0
+      " Nvim Connected, do nothing.
+    else
+      call s:Connect(g:WorkingSetSocketPath)
+    endif
   else
-    call s:Connect(g:WorkingSetSocketPath)
+    if exists("g:WSchannel") && ch_status(g:WSchannel) == 'open'
+      " Vim Connected, do nothing.
+    else
+      call s:Connect(g:WorkingSetSocketPath)
+    endif
   endif
 endfunc
 
-func! s:Connect(socketfile)
-  if exists("g:WSjob") && job_status(g:WSjob) == "run"
-    call job_stop(g:WSjob)
+if has('nvim')
+  func! s:Connect(socketfile)
+      let g:WSjob = jobstart("socat - UNIX-CONNECT:" . a:socketfile, {
+            \ "on_stdout": function("s:InputHandler"),
+            \ "on_stderr": function("s:ErrorHandler"),
+            \ "on_exit":   function("s:ExitHandler")
+            \ })
+
+      let g:WSchannel = g:WSjob
+  endfunc
+
+else
+  func! s:Connect(socketfile)
+    let g:WSjob = job_start("socat - UNIX-CONNECT:" . a:socketfile, { "err_cb": function("s:ErrorHandler"), "out_cb": function("s:InputHandler") })
+    let g:WSchannel = job_getchannel(g:WSjob)
+
+    if ch_status(g:WSchannel) != "open"
+      echomsg "Unable to connect to .working_set_socket"
+    endif
+  endfunc
+endif
+
+func! s:InputHandler(job_id, response_body, ...)
+  if has('nvim')
+    let body = join(a:response_body, "")
+  else
+    let body = a:response_body
   endif
-
-  let g:WSjob = job_start("socat - UNIX-CONNECT:" . a:socketfile, { "err_cb": function("s:ErrorHandler"), "out_cb": function("s:InputHandler") })
-  let g:WSchannel = job_getchannel(g:WSjob)
-
-  if ch_status(g:WSchannel) != "open"
-    echomsg "Unable to connect to .working_set_socket"
+  if body == ""
+    " This happens when the WSjob exits
+    return
   endif
-endfunc
-
-func! s:InputHandler(channel, response_body)
-  let payload = json_decode(a:response_body)
+  let payload = json_decode(body)
   if payload.message == "selected_item"
     call s:SyncLocation(payload)
+  elseif payload.message == "selected_item_content"
+    call s:HandleGrabbedItem(payload)
   endif
 endfunc
 
-func! s:ErrorHandler(channel, msg)
-  echomsg "WS Error: " . a:msg
+func! s:ErrorHandler(job_id, msg, ...)
+  if has('nvim')
+    let msg = join(a:msg, "")
+  else
+    let msg = a:msg
+  endif
+  echomsg "WS Error: " . msg
+endfunc
+
+func! s:ExitHandler(...)
+  echomsg "Working Set lost connection..."
+  let g:WSchannel = 0
 endfunc
 
 " Low Level API Functions
@@ -68,7 +106,15 @@ func! s:SendMsg(msg, ...)
     endif
   endif
   call s:EnsureConnection()
-  call ch_sendraw(g:WSchannel, json_encode(payload) . "\n", options)
+  call s:SendMsgRaw(json_encode(payload). "\n")
+endfunc
+
+func! s:SendMsgRaw(msg)
+  if has('nvim')
+    call chansend(g:WSchannel, a:msg)
+  else
+    call ch_sendraw(g:WSchannel, a:msg)
+  endif
 endfunc
 
 " Medium Level API Functions
@@ -102,13 +148,14 @@ func! s:SearchCurrentWord()
 endfunc
 
 func! s:Grab(pasteCmd)
-  call s:SendMsg("tell_selected_item_content", {}, { 'callback': "s:HandleGrabbedItem", 'args': [a:pasteCmd] })
+  let g:WSNextPasteCmd = a:pasteCmd
+  call s:SendMsg("tell_selected_item_content")
 endfunc
 
-func! s:HandleGrabbedItem(pasteCmd, channel, msg)
-  let line = substitute(json_decode(a:msg).data, '^\s*', '', '')
+func! s:HandleGrabbedItem(payload)
+  let line = substitute(a:payload.data, '^\s*', '', '')
   call setreg('"', line, 'l')
-  exe 'normal ""' . a:pasteCmd
+  exe 'normal ""' . g:WSNextPasteCmd
 endfunc
 
 command! WSSelectNextItem call s:SelectNextItem()
