@@ -156,6 +156,7 @@ func! s:HandleGrabbedItem(payload)
   let line = substitute(a:payload.data, '^\s*', '', '')
   call setreg('"', line, 'l')
   exe 'normal ""' . g:WSNextPasteCmd
+  normal ==
 endfunc
 
 command! WSSelectNextItem call s:SelectNextItem()
